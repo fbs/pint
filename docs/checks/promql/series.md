@@ -128,6 +128,7 @@ Syntax:
 ```js
 check "promql/series" {
   ignoreMetrics = [ "(.*)", ... ]
+  lookbackPeriod = "7d"
 }
 ```
 
@@ -146,6 +147,18 @@ check "promql/series" {
     ".*_errors_.*",
   ]
 }
+```
+
+- `lookbackPeriod` - How far back in time to go when checking whether a metric
+  was (at some point) present.
+  Defaults to `7d'
+
+Example:
+```js
+check "promql/series" {
+  lookbackPeriod = "1d"
+}
+
 ```
 
 ### min-age

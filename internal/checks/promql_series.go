@@ -20,9 +20,17 @@ import (
 	promParser "github.com/prometheus/prometheus/promql/parser"
 )
 
+const (
+	rangeLookbackDefault = time.Hour * 24 * 7
+	rangeStepDefault = time.Minute * 5
+	SeriesCheckName = "promql/series"
+)
+
 type PromqlSeriesSettings struct {
 	IgnoreMetrics   []string `hcl:"ignoreMetrics,optional" json:"ignoreMetrics,omitempty"`
 	ignoreMetricsRe []*regexp.Regexp
+
+	LookbackPeriod  string `hcl:"lookbackPeriod,optional" json:"lookbackPeriod,omitempty"`
 }
 
 func (c *PromqlSeriesSettings) Validate() error {
@@ -34,12 +42,14 @@ func (c *PromqlSeriesSettings) Validate() error {
 		c.ignoreMetricsRe = append(c.ignoreMetricsRe, re)
 	}
 
+	if c.LookbackPeriod != "" {
+		if _, err := parseDuration(c.LookbackPeriod); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
-
-const (
-	SeriesCheckName = "promql/series"
-)
 
 func NewSeriesCheck(prom *promapi.FailoverGroup) SeriesCheck {
 	return SeriesCheck{prom: prom}
@@ -73,8 +83,11 @@ func (c SeriesCheck) Check(ctx context.Context, path string, rule parser.Rule, e
 		return
 	}
 
-	rangeLookback := time.Hour * 24 * 7
-	rangeStep := time.Minute * 5
+	rangeLookback := rangeLookbackDefault
+	if settings.LookbackPeriod != "" {
+		rangeLookback, _ = parseDuration(settings.LookbackPeriod)
+	}
+	rangeStep := rangeStepDefault
 
 	done := map[string]bool{}
 	for _, selector := range getSelectors(expr.Query) {
@@ -592,4 +605,13 @@ func newest(ranges []promapi.MetricTimeRange) (ts time.Time) {
 		}
 	}
 	return ts
+}
+
+
+func parseDuration(d string) (time.Duration, error) {
+	mdur, err := model.ParseDuration(d)
+	if err != nil {
+		return 0, err
+	}
+	return time.Duration(mdur), nil
 }
